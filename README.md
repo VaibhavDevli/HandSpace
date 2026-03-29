@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ✋ HandSpace — AI-Driven Inclusive 3D Learning Platform
 
 > **Hackathon Round 2 MVP** | Team: **Pahadi Coders**  
@@ -227,3 +228,7 @@ See [`docs/SCALABILITY.md`](docs/SCALABILITY.md) for full analysis.
 ## 📜 License
 
 MIT — free for educational use.
+=======
+# HandSpace
+**HandSpace** is a fully browser-based, AI-powered 3D learning platform that lets students
+>>>>>>> da3717c8787928848ab61b9ca1d0f4204282195d
