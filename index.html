@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HandSpace — AI-Driven 3D Learning Platform</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Syne:wght@400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+
+  <!-- Three.js r128 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+
+  <!-- MediaPipe Hands -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<!-- Particle canvas (background) -->
+<canvas id="bg-canvas"></canvas>
+
+<!-- ═══════════════════════════════════════════════════
+     MAIN APP LAYOUT
+═══════════════════════════════════════════════════ -->
+<div id="app">
+
+  <!-- ██ LEFT: 3D VIEWPORT ██ -->
+  <div id="viewport">
+    <!-- Three.js renders here -->
+    <div id="three-mount"></div>
+
+    <!-- Corner decorations -->
+    <div class="corner tl"></div>
+    <div class="corner tr"></div>
+    <div class="corner bl"></div>
+    <div class="corner br"></div>
+
+    <!-- Top toolbar -->
+    <nav id="toolbar">
+      <div id="brand">
+        <span id="brand-icon">✋</span>
+        <span id="brand-name">HandSpace</span>
+        <span id="brand-live" class="live-dot"></span>
+        <span id="brand-live-txt">LIVE</span>
+      </div>
+      <div id="toolbar-btns">
+        <button class="tbtn" id="btn-reset"     title="Reset view">⟳ Reset</button>
+        <button class="tbtn" id="btn-wireframe" title="Toggle wireframe">⬡ Wire</button>
+        <button class="tbtn active" id="btn-gesture" title="Toggle gesture">✦ Gesture</button>
+        <label  class="tbtn" title="Load GLB/GLTF model">
+          ⊕ Model
+          <input type="file" id="model-input" accept=".glb,.gltf" hidden />
+        </label>
+        <button class="tbtn" id="btn-diagram"   title="System diagram">⬡ Diagram</button>
+        <button class="tbtn" id="btn-apikey"    title="Set API key">◉ API Key</button>
+      </div>
+    </nav>
+
+    <!-- Status chips top-right -->
+    <div id="status-bar">
+      <div class="chip" id="chip-mp"><span class="cdot"></span>MEDIAPIPE</div>
+      <div class="chip" id="chip-3j"><span class="cdot on"></span>THREE.JS</div>
+      <div class="chip" id="chip-ai"><span class="cdot"></span>AI ENGINE</div>
+    </div>
+
+    <!-- Left gesture legend -->
+    <div id="gesture-legend">
+      <div class="gl-title">GESTURE MAP</div>
+      <div class="gl-row"><span>🖐</span><span>Open Hand → Rotate</span></div>
+      <div class="gl-row"><span>✊</span><span>Fist → Pan</span></div>
+      <div class="gl-row"><span>🤏</span><span>Pinch → Select / Zoom</span></div>
+      <div class="gl-row"><span>✌️</span><span>Peace → Next Step</span></div>
+      <div class="gl-row"><span>🤲</span><span>Both Hands → Scale</span></div>
+    </div>
+
+    <!-- Bottom mode badge -->
+    <div id="mode-badge">
+      <span id="mb-icon">✋</span>
+      <div>
+        <div id="mb-label">Open Hand → Rotate</div>
+        <div id="mb-sub">GESTURE ACTIVE</div>
+      </div>
+      <span id="mb-dot"></span>
+    </div>
+
+    <!-- Bottom-right XYZ readout -->
+    <div id="xyz-hud">
+      <span id="hud-x">X: 0.000</span>
+      <span id="hud-y">Y: 0.000</span>
+      <span id="hud-z">Z: 5.000</span>
+    </div>
+  </div><!-- /viewport -->
+
+  <!-- ██ RIGHT: CONTROL PANEL ██ -->
+  <aside id="panel">
+
+    <!-- Logo row -->
+    <div id="logo-row">
+      <div id="logo-orb">✋</div>
+      <div>
+        <div id="logo-title">HandSpace</div>
+        <div id="logo-sub">AI · 3D · INCLUSIVE</div>
+      </div>
+      <span id="logo-ver">MVP</span>
+    </div>
+
+    <!-- Tab bar -->
+    <div id="tabs">
+      <button class="tab active" data-tab="info">ℹ Info</button>
+      <button class="tab"        data-tab="steps">◈ Steps</button>
+      <button class="tab"        data-tab="camera">◎ Camera</button>
+    </div>
+
+    <!-- ── INFO TAB ── -->
+    <div id="tab-info" class="tab-pane active">
+
+      <div id="part-card">
+        <div id="part-tag">SELECTED COMPONENT</div>
+        <div id="part-name">Select a Part</div>
+        <div id="part-desc">Click or pinch-gesture any part of the 3D model to inspect it.</div>
+      </div>
+
+      <div id="ai-card">
+        <div id="ai-label">
+          <span class="ai-dot"></span>AI EXPLANATION ENGINE
+        </div>
+        <div id="ai-text">Select a model component to get a context-aware AI explanation.</div>
+        <div id="ai-spinner" hidden>
+          <div class="spinner"></div>
+          <span>Generating neural response…</span>
+        </div>
+      </div>
+
+      <div class="section-group">
+        <div class="sec-title">ANNOTATIONS</div>
+        <div id="ann-list"></div>
+      </div>
+
+      <div class="section-group">
+        <div class="sec-title">MODEL PARTS</div>
+        <div id="parts-list"></div>
+      </div>
+
+    </div>
+
+    <!-- ── STEPS TAB ── -->
+    <div id="tab-steps" class="tab-pane">
+      <div class="sec-title">GUIDED LEARNING PATH</div>
+      <div id="steps-list"></div>
+      <div id="step-nav">
+        <button id="btn-prev">← Prev</button>
+        <span id="step-counter">1 / 1</span>
+        <button id="btn-next">Next →</button>
+      </div>
+    </div>
+
+    <!-- ── CAMERA TAB ── -->
+    <div id="tab-camera" class="tab-pane">
+      <div class="sec-title">LIVE GESTURE FEED</div>
+      <div id="cam-wrap">
+        <video id="webcam" autoplay playsinline muted></video>
+        <canvas id="gesture-canvas"></canvas>
+        <div id="cam-offline">CAMERA OFFLINE</div>
+      </div>
+      <div id="gest-stats">
+        <div class="stat-row"><span class="stat-k">// gesture_type</span><span id="g-type"  class="stat-v">null</span></div>
+        <div class="stat-row"><span class="stat-k">// hands_count</span> <span id="g-hands" class="stat-v">0</span></div>
+        <div class="stat-row"><span class="stat-k">// confidence</span>  <span id="g-conf"  class="stat-v">null</span></div>
+      </div>
+      <button id="btn-camera" class="prime-btn">▶ INITIALISE CAMERA</button>
+    </div>
+
+  </aside><!-- /panel -->
+
+</div><!-- /app -->
+
+<!-- ═══════════ DIAGRAM MODAL ═══════════ -->
+<div id="diagram-modal" hidden>
+  <div id="diagram-inner">
+    <div id="diagram-header">
+      <span>⬡ SYSTEM ARCHITECTURE</span>
+      <button id="close-diagram">✕</button>
+    </div>
+    <div id="diagram-body">
+      <!-- Pipeline flow -->
+      <div id="pipeline">
+        <div class="pipe-step" data-color="cyan">
+          <div class="ps-icon">📷</div>
+          <div class="ps-name">Webcam Input</div>
+          <div class="ps-desc">getUserMedia API<br/>640×480 @ 30fps</div>
+        </div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step" data-color="blue">
+          <div class="ps-icon">🖐</div>
+          <div class="ps-name">Hand Detection</div>
+          <div class="ps-desc">MediaPipe Hands<br/>21 Landmarks / hand</div>
+        </div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step" data-color="purple">
+          <div class="ps-icon">🧠</div>
+          <div class="ps-name">Gesture Classify</div>
+          <div class="ps-desc">Rule-based CNN<br/>5 gesture types</div>
+        </div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step" data-color="orange">
+          <div class="ps-icon">🎯</div>
+          <div class="ps-name">Intent Recognition</div>
+          <div class="ps-desc">Temporal smoothing<br/>4-frame window</div>
+        </div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step" data-color="green">
+          <div class="ps-icon">🧊</div>
+          <div class="ps-name">3D Interaction</div>
+          <div class="ps-desc">Three.js engine<br/>GLB/GLTF models</div>
+        </div>
+      </div>
+
+      <!-- Tech layers -->
+      <div id="tech-layers">
+        <div class="layer" id="layer-ui">
+          <div class="layer-label">UI LAYER</div>
+          <div class="layer-chips">
+            <span class="tc">HTML5</span><span class="tc">CSS3</span><span class="tc">Vanilla JS</span>
+          </div>
+        </div>
+        <div class="layer" id="layer-3d">
+          <div class="layer-label">3D LAYER</div>
+          <div class="layer-chips">
+            <span class="tc">Three.js r128</span><span class="tc">GLTFLoader</span><span class="tc">WebGL</span>
+          </div>
+        </div>
+        <div class="layer" id="layer-ai">
+          <div class="layer-label">AI LAYER</div>
+          <div class="layer-chips">
+            <span class="tc">MediaPipe</span><span class="tc">CNN Landmarks</span><span class="tc">Anthropic API</span>
+          </div>
+        </div>
+        <div class="layer" id="layer-data">
+          <div class="layer-label">DATA LAYER</div>
+          <div class="layer-chips">
+            <span class="tc">JSON Metadata</span><span class="tc">localStorage</span><span class="tc">Client-side</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scalability note -->
+      <div id="scale-note">
+        <div class="sn-title">⚡ SCALABILITY & RELIABILITY</div>
+        <div class="sn-grid">
+          <div class="sn-item"><strong>Zero Backend</strong><br/>100% client-side execution. No server costs. Scales to unlimited concurrent users instantly.</div>
+          <div class="sn-item"><strong>CDN Delivery</strong><br/>Static assets via CDN. Sub-100ms global load times. Automatic geo-distribution.</div>
+          <div class="sn-item"><strong>Model Agnostic</strong><br/>Any GLB/GLTF model loads dynamically. Add subjects without code changes.</div>
+          <div class="sn-item"><strong>AI at Edge</strong><br/>MediaPipe runs fully in-browser. No latency. Privacy-safe — no video leaves device.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ API KEY MODAL ═══════════ -->
+<div id="key-modal" hidden>
+  <div id="key-inner">
+    <div id="key-header">◉ Anthropic API Key</div>
+    <p id="key-desc">Paste your Anthropic key to enable AI-powered part explanations and guided learning paths. Stored in localStorage only.</p>
+    <input type="password" id="key-input" placeholder="sk-ant-api03-…" autocomplete="off" />
+    <div id="key-btns">
+      <button id="btn-save-key" class="prime-btn" style="flex:1">Save Key</button>
+      <button id="btn-cancel-key" class="ghost-btn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ TOAST ═══════════ -->
+<div id="toast"></div>
+
+<!-- ═══════════ SCRIPTS ═══════════ -->
+<script src="js/gesture.js"></script>
+<script src="js/scene.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/app.js"></script>
+
+<!-- Background particles (inline, small) -->
+<script>
+!function(){
+  var c=document.getElementById('bg-canvas'),x=c.getContext('2d'),W,H,P;
+  function resize(){W=c.width=innerWidth;H=c.height=innerHeight}
+  function init(){P=Array.from({length:55},()=>({
+    x:Math.random()*W,y:Math.random()*H,
+    dx:(Math.random()-.5)*.18,dy:(Math.random()-.5)*.18,
+    r:Math.random()*.9+.25,
+    a:Math.random()*.3+.05,
+    col:['rgba(0,245,255,','rgba(255,0,200,','rgba(0,255,157,'][0|Math.random()*3]
+  }))}
+  function frame(){
+    x.clearRect(0,0,W,H);
+    P.forEach((p,i)=>{
+      x.beginPath();x.arc(p.x,p.y,p.r,0,Math.PI*2);
+      x.fillStyle=p.col+p.a+')';x.fill();
+      P.forEach((q,j)=>{if(j<=i)return;var d=Math.hypot(p.x-q.x,p.y-q.y);
+        if(d<105){x.beginPath();x.moveTo(p.x,p.y);x.lineTo(q.x,q.y);
+          x.strokeStyle='rgba(0,245,255,'+(0.05*(1-d/105))+')';x.lineWidth=.5;x.stroke()}});
+      p.x+=p.dx;p.y+=p.dy;
+      if(p.x<0)p.x=W;if(p.x>W)p.x=0;
+      if(p.y<0)p.y=H;if(p.y>H)p.y=0;
+    });
+    requestAnimationFrame(frame);
+  }
+  resize();init();frame();
+  addEventListener('resize',()=>{resize();init()});
+  // XYZ HUD
+  document.addEventListener('mousemove',function(e){
+    var hx=document.getElementById('hud-x'),hy=document.getElementById('hud-y');
+    if(hx)hx.textContent='X: '+((e.clientX/innerWidth*2-1).toFixed(3));
+    if(hy)hy.textContent='Y: '+(-(e.clientY/innerHeight*2-1)).toFixed(3);
+  });
+}();
+</script>
+
+</body>
+</html>
